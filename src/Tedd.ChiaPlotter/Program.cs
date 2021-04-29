@@ -20,6 +20,8 @@ namespace Tedd.ChiaPlotter
 
         // <param name="verbose">Show verbose output</param>
         // <param name="killRunning">RemoveJob: Kill running process (optional)</param>
+        // <param name="plotParallelism">AddJob: Number of plots to generate in parallel (optional, default: 1)</param>
+        // <param name="queueName">AddJob: Queue for job (optional, default: default)</param>
         /// <summary>
         /// Chia plotting helper
         /// </summary>
@@ -31,14 +33,12 @@ namespace Tedd.ChiaPlotter
         /// <param name="maxRamMB">AddJob: Max RAM usage (in MB) (optional, default: 4096)</param>
         /// <param name="bucketCount">AddJob: Number of buckets (optional, default: 128)</param>
         /// <param name="plotCount">AddJob: Number of plots to create (optional, default: 1)</param>
-        /// <param name="plotParallelism">AddJob: Number of plots to generate in parallel (optional, default: 1)</param>
-        /// <param name="queueName">AddJob: Queue for job (optional, default: default)</param>
         /// <param name="jobId">RemoveJob: Job id to remove (required)</param>
         /// <param name="jobConfigFile">Job config file to use (optional, default: ChiaPlotter_Config.json)</param>
         /// <param name="jobStatusFile">Job status file to use (optional, default: ChiaPlotter_Status.json)</param>
         static async Task<int> Main(ActionEnum action = ActionEnum.None,
             //            bool daemon = false, bool verbose = false,
-            string temp1Dir = null, string temp2Dir = null, string plotDir = null, int threadCount = 2, int maxRamMB = 4096, int bucketCount = 128, string queueName = "default", int plotCount = 1, int plotParallelism = 1,
+            string temp1Dir = null, string temp2Dir = null, string plotDir = null, int threadCount = 2, int maxRamMB = 4096, int bucketCount = 128, int plotCount = 1, //int plotParallelism = 1, string queueName = "default",
             int jobId = -1, //bool killRunning = false,
             string jobConfigFile = "ChiaPlotter_Config.json", string jobStatusFile = "ChiaPlotter_Status.json")
         {
@@ -73,9 +73,9 @@ namespace Tedd.ChiaPlotter
                         ThreadCount = threadCount,
                         MaxRamMB = maxRamMB,
                         BucketCount = bucketCount,
-                        QueueName = queueName,
+                        //QueueName = queueName,
                         PlotCount = plotCount,
-                        PlotParallelism = plotParallelism
+                        //PlotParallelism = plotParallelism
                     });
                 default:
                     return (int)ExitCodes.UnknownAction;
@@ -158,7 +158,8 @@ namespace Tedd.ChiaPlotter
             Console.WriteLine($"Job status file: {_jobsStatusFile}");
             Console.WriteLine($"Job count: {jobConfig.Jobs.Count}");
             Console.WriteLine();
-            var table = new ConsoleTable("Id", "Status", "Done %", nameof(Job.QueueName), nameof(Job.PlotParallelism), nameof(Job.PlotCount), nameof(Job.PlotDir), nameof(Job.Temp1Dir), nameof(Job.Temp2Dir), nameof(Job.BucketCount), nameof(Job.MaxRamMB), nameof(Job.ThreadCount));
+            // nameof(Job.QueueName), nameof(Job.PlotParallelism),
+            var table = new ConsoleTable("Id", "Status", "Done %",  nameof(Job.PlotCount), nameof(Job.PlotDir), nameof(Job.Temp1Dir), nameof(Job.Temp2Dir), nameof(Job.BucketCount), nameof(Job.MaxRamMB), nameof(Job.ThreadCount));
             foreach (var jobKVP in jobConfig.Jobs.OrderBy(kvp => kvp.Key))
             {
                 // Get status
@@ -167,7 +168,8 @@ namespace Tedd.ChiaPlotter
                     jobStatus = new();
                 var job = jobKVP.Value;
                 // Add to table
-                table.AddRow(jobKVP.Key, jobStatus.Status.ToString(), ((int)jobStatus.ProgressPercentage).ToString() + "%", job.QueueName, job.PlotParallelism, job.PlotCount, job.PlotDir, job.Temp1Dir, job.Temp2Dir, job.BucketCount, job.MaxRamMB, job.ThreadCount);
+                // job.QueueName, job.PlotParallelism, 
+                table.AddRow(jobKVP.Key, jobStatus.Status.ToString(), ((int)jobStatus.ProgressPercentage).ToString() + "%", job.PlotCount, job.PlotDir, job.Temp1Dir, job.Temp2Dir, job.BucketCount, job.MaxRamMB, job.ThreadCount);
             }
             // Write table to console
             table.Write(Format.Default);
@@ -284,9 +286,9 @@ namespace Tedd.ChiaPlotter
                 await Task.Delay(_checkConfigChangeMs, appExitCTS.Token);
 
                 // Write status
-                jobStatus.Jobs.Clear();
-                foreach (var js in processControl.GetJobList())
-                    jobStatus.Jobs.Add(js.Id, js.Status);
+                //jobStatus.Jobs.Clear();
+                //foreach (var js in processControl.GetJobList())
+                //    jobStatus.Jobs.Add(js.Id, js.Status);
                 await WriteJobStatus(jobStatus);
             }
             appExit.Set();

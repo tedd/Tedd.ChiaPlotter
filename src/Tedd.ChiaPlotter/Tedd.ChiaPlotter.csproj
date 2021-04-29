@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net5.0</TargetFramework>
     <langVersion>latest</langVersion>
-    <nullable>enabled</nullable>
+    <nullable>enable</nullable>
   </PropertyGroup>
 
   <ItemGroup>
