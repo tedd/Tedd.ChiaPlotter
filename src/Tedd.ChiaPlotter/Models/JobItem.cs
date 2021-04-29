@@ -1,9 +1,10 @@
 ﻿namespace Tedd.ChiaPlotter.Models
 {
-    internal class JobItem: Job
+    internal class JobItem
     {
         public int Id { get; set; }
-        public JobStatus Status { get; set; }
-        public bool Enabled { get; set; }
+        public Job Job { get; set; }
+        public JobStatus Status { get; set; } = new();
+        public bool Enabled { get; set; } = true;
     }
 }

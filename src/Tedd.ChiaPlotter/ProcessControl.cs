@@ -35,7 +35,6 @@ namespace Tedd.ChiaPlotter
                 Jobs.Add(jobId, jobItem);
                 Execute(jobId);
             }
-
         }
 
         public void RemoveJob(int jobId)
@@ -55,8 +54,6 @@ namespace Tedd.ChiaPlotter
             // TODO: Check if this process is already running
             // TODO: If not, execute it
         }
-
-
 
     }
 }
