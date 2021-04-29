@@ -1,40 +1,30 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.CommandLine.Invocation;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ConsoleTables;
+using Tedd.ChiaPlotter.Enums;
 using Tedd.ChiaPlotter.Models;
 
 namespace Tedd.ChiaPlotter
 {
-    internal enum ExitCodes
-    {
-        Success,
-        Help,
-        UnknownAction,
-        JobNotFound,
-        NoJobsInConfig,
-        JobConfigFileNotFound,
-    }
     class Program
     {
         private static string _jobsConfigFile = "";
         private static string _jobsStatusFile = "";
-        private enum ActionEnum
-        {
-            None,
-            Start,
-            AddJob,
-            RemoveJob,
-            ListJobs
-        }
+        private static int _checkConfigChangeMs = 1_000;
+
+
         // <param name="verbose">Show verbose output</param>
+        // <param name="killRunning">RemoveJob: Kill running process (optional)</param>
         /// <summary>
         /// Chia plotting helper
         /// </summary>
         /// <param name="action">Action: Start, List, AddJob, RemoveJob</param>
-        /// <param name="jobId">RemoveJob: Job id to remove</param>
         /// <param name="temp1Dir">AddJob: Temp directory 1 (required)</param>
         /// <param name="temp2Dir">AddJob: Temp directory 2 (optional)</param>
         /// <param name="plotDir">AddJob: Plot directory (required)</param>
@@ -44,12 +34,13 @@ namespace Tedd.ChiaPlotter
         /// <param name="plotCount">AddJob: Number of plots to create (optional, default: 1)</param>
         /// <param name="plotParallelism">AddJob: Number of plots to generate in parallel (optional, default: 1)</param>
         /// <param name="queueName">AddJob: Queue for job (optional, default: default)</param>
+        /// <param name="jobId">RemoveJob: Job id to remove (required)</param>
         /// <param name="jobConfigFile">Job config file to use (optional, default: ChiaPlotter_Config.json)</param>
         /// <param name="jobStatusFile">Job status file to use (optional, default: ChiaPlotter_Status.json)</param>
         static async Task<int> Main(ActionEnum action = ActionEnum.None,
             //            bool daemon = false, bool verbose = false,
             string temp1Dir = null, string temp2Dir = null, string plotDir = null, int threadCount = 2, int maxRamMB = 4096, int bucketCount = 128, string queueName = "default", int plotCount = 1, int plotParallelism = 1,
-            int jobId = -1,
+            int jobId = -1, //bool killRunning = false,
             string jobConfigFile = "ChiaPlotter_Config.json", string jobStatusFile = "ChiaPlotter_Status.json")
         {
             _jobsConfigFile = jobConfigFile;
@@ -150,6 +141,7 @@ namespace Tedd.ChiaPlotter
         #endregion
         #endregion
 
+        #region Action: ListJobs
         private static async Task<ExitCodes> ListJobs()
         {
             // Job config file is required.
@@ -184,17 +176,16 @@ namespace Tedd.ChiaPlotter
 
             return ExitCodes.Success;
         }
+        #endregion
 
-
+        #region Action: AddJob
         private static async Task<ExitCodes> AddJob(Job job)
         {
             // Read job config file
             var jobConfig = await ReadJobConfig();
 
             // Get next free id
-            var nextId = 0;
-            if (jobConfig.Jobs != null && jobConfig.Jobs.Count > 0)
-                nextId = jobConfig.Jobs.Keys.Max() + 1;
+            var nextId = ++jobConfig.NextId;
 
             // Add job
             if (jobConfig.Jobs == null)
@@ -206,7 +197,9 @@ namespace Tedd.ChiaPlotter
 
             return ExitCodes.Success;
         }
+        #endregion
 
+        #region Action: RemoveJob
         private static async Task<ExitCodes> RemoveJob(int jobId)
         {
             // Read job config file
@@ -225,7 +218,9 @@ namespace Tedd.ChiaPlotter
             return ExitCodes.Success;
 
         }
+        #endregion
 
+        #region Action: Start
         private static async Task<ExitCodes> Start()
         {
             // Job config file is required.
@@ -236,18 +231,125 @@ namespace Tedd.ChiaPlotter
                 return ExitCodes.JobConfigFileNotFound;
             }
 
-            // Read job config file
-            var jobConfig = await ReadJobConfig();
+            using var appExitCTS = new CancellationTokenSource();
+            var appExit = new ManualResetEvent(false);
+            // For gracefull shutdown, trap unload event
+            AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
+            {
+                appExitCTS.Cancel();
+                appExit.WaitOne(1_000);
+            };
+            //Console.TreatControlCAsInput = true;
+            Console.CancelKeyPress += (sender, args) =>
+            {
+                args.Cancel = true;
+                appExitCTS.Cancel();
+            };
+
 
             // No jobs? No problem. (But print a warning)
-            if (jobConfig.Jobs.Count == 0)
+            if ((await ReadJobConfig()).Jobs.Count == 0)
                 Console.WriteLine("Warning: No jobs found.");
 
-            for (; ; )
-            {
 
+            var currentJobConfig = new JobConfigFile();
+            var jobStatus = await ReadJobStatus();
+            var processControl = new ProcessControl(jobStatus);
+
+            while (!appExitCTS.IsCancellationRequested)
+            {
+                // If config file has changed, read it again and update ProcessControl
+                // TODO: Figure out efficient way to check file for changes (date+size? hash whole file?)
+                if (true)
+                {
+                    // Read new config and update ProcessControl with delta
+                    var jobConfig = await ReadJobConfig();
+                    // Add jobs to ProcessControl that was added to config
+                    foreach (var jobKVP in jobConfig.Jobs)
+                    {
+                        // New job, needs to be added
+                        if (!currentJobConfig.Jobs.ContainsKey(jobKVP.Key))
+                            processControl.AddJob(jobKVP.Key, jobKVP.Value);
+                    }
+                    // Remove jobs from ProcessControl that was removed from config
+                    foreach (var jobKVP in currentJobConfig.Jobs)
+                    {
+                        if (!jobConfig.Jobs.ContainsKey(jobKVP.Key))
+                            processControl.RemoveJob(jobKVP.Key);
+                    }
+
+                    currentJobConfig = jobConfig;
+                }
+
+                // Delay between file checks
+                await Task.Delay(_checkConfigChangeMs, appExitCTS.Token);
+
+                // Write status
+                jobStatus.Jobs.Clear();
+                foreach (var js in processControl.GetJobList())
+                    jobStatus.Jobs.Add(js.Id, js.Status);
+                await WriteJobStatus(jobStatus);
+            }
+            appExit.Set();
+            return ExitCodes.Success;
+        }
+        #endregion
+
+    }
+
+    internal class ProcessControl
+    {
+        private readonly JobStatusFile _jobStatus;
+
+        private Dictionary<int, JobItem> Jobs { get; set; } = new();
+        public ProcessControl(JobStatusFile jobStatus)
+        {
+            _jobStatus = jobStatus;
+            // TODO: Compare old status file to running process list so we can attach to any existing orphaned process
+            // TODO: Start a background thread that checks status for all jobs, updates status, spawns next in queue, etc...
+        }
+
+        public List<JobItem> GetJobList()
+        {
+            lock (Jobs)
+                return new(Jobs.Values.Where(w => w.Enabled));
+        }
+
+        public void AddJob(int jobId, Job job)
+        {
+            // TODO: First scan process table to see if there is already a process that matches
+            lock (Jobs)
+            {
+                var jobItem = new JobItem()
+                {
+                    Id = jobId,
+                    Job = job
+                };
+                Jobs.Add(jobId, jobItem);
+                Execute(jobId);
+            }
+
+        }
+
+        public void RemoveJob(int jobId)
+        {
+            // Remove job. Should it be killed too? Cleanup temp files?
+            lock (Jobs)
+            {
+                if (Jobs.TryGetValue(jobId, out var jobItem))
+                    jobItem.Enabled = false;
+
+                // TODO: Should we kill running job?
             }
         }
+
+        private void Execute(int jobId)
+        {
+            // TODO: Check if this process is already running
+            // TODO: If not, execute it
+        }
+
+
 
     }
 }
