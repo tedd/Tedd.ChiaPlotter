@@ -26,6 +26,9 @@ namespace Tedd.ChiaPlotter
         /// Chia plotting helper
         /// </summary>
         /// <param name="action">Action: Start, List, AddJob, RemoveJob</param>
+        /// <param name="keyFingerprint">AddJob: Key fingerprint from your keychain (optional)</param>
+        /// <param name="farmerPK">AddJob: Farmer Public Key (optional)</param>
+        /// <param name="poolPK">AddJob: Farmer Public Key (optional)</param>
         /// <param name="temp1Dir">AddJob: Temp directory 1 (required)</param>
         /// <param name="temp2Dir">AddJob: Temp directory 2 (optional)</param>
         /// <param name="plotDir">AddJob: Plot directory (required)</param>
@@ -38,7 +41,7 @@ namespace Tedd.ChiaPlotter
         /// <param name="jobStatusFile">Job status file to use (optional, default: ChiaPlotter_Status.json)</param>
         static async Task<int> Main(ActionEnum action = ActionEnum.None,
             //            bool daemon = false, bool verbose = false,
-            string temp1Dir = null, string temp2Dir = null, string plotDir = null, int threadCount = 2, int maxRamMB = 4096, int bucketCount = 128, int plotCount = 1, //int plotParallelism = 1, string queueName = "default",
+            int keyFingerprint = 0, string? farmerPK = null, string? poolPK = null, string? temp1Dir = null, string? temp2Dir = null, string? plotDir = null, int threadCount = 2, int maxRamMB = 4096, int bucketCount = 128, int plotCount = 1, //int plotParallelism = 1, string queueName = "default",
             int jobId = -1, //bool killRunning = false,
             string jobConfigFile = "ChiaPlotter_Config.json", string jobStatusFile = "ChiaPlotter_Status.json")
         {
@@ -60,6 +63,8 @@ namespace Tedd.ChiaPlotter
                 case ActionEnum.RemoveJob:
                     return (int)await RemoveJob(jobId);
 
+                case ActionEnum.AddJob when keyFingerprint == 0 && (string.IsNullOrWhiteSpace(farmerPK) || string.IsNullOrWhiteSpace(poolPK)):
+                    return (int)await ShowHelp($"Missing -{nameof(keyFingerprint)} parameter. Or missing -{nameof(farmerPK)} and -{nameof(poolPK)} parameters.");
                 case ActionEnum.AddJob when string.IsNullOrWhiteSpace(temp1Dir):
                     return (int)await ShowHelp($"Missing -{nameof(temp1Dir)} parameter.");
                 case ActionEnum.AddJob when string.IsNullOrWhiteSpace(plotDir):
@@ -159,7 +164,7 @@ namespace Tedd.ChiaPlotter
             Console.WriteLine($"Job count: {jobConfig.Jobs.Count}");
             Console.WriteLine();
             // nameof(Job.QueueName), nameof(Job.PlotParallelism),
-            var table = new ConsoleTable("Id", "Status", "Done %",  nameof(Job.PlotCount), nameof(Job.PlotDir), nameof(Job.Temp1Dir), nameof(Job.Temp2Dir), nameof(Job.BucketCount), nameof(Job.MaxRamMB), nameof(Job.ThreadCount));
+            var table = new ConsoleTable("Id", "Status", "Done %", nameof(Job.PlotCount), nameof(Job.PlotDir), nameof(Job.Temp1Dir), nameof(Job.Temp2Dir), nameof(Job.BucketCount), nameof(Job.MaxRamMB), nameof(Job.ThreadCount));
             foreach (var jobKVP in jobConfig.Jobs.OrderBy(kvp => kvp.Key))
             {
                 // Get status

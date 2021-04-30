@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.CommandLine;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -43,7 +45,11 @@ namespace Tedd.ChiaPlotter
         {
             using var proc = StartProcess("wmic", $"process where \"processid = '{process.Id}'\" get commandline");
             proc.WaitForExit();
-            var txt = proc.StandardOutput.ReadToEnd();
+            var txt = proc.StandardOutput.ReadToEnd()
+                .Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries)
+                .Skip(1)
+                .First();
+
             return txt;
         }
 
@@ -55,7 +61,6 @@ namespace Tedd.ChiaPlotter
 
         public void AddJob(int jobId, Job job)
         {
-            // TODO: First scan process table to see if there is already a process that matches
             lock (_jobStatus.Jobs)
             {
                 var jobStatus = new JobStatus()
@@ -71,9 +76,8 @@ namespace Tedd.ChiaPlotter
         public void RemoveJob(int jobId)
         {
             // Disable job in active job list
-            JobStatus? jobStatus;
             lock (_jobStatus.Jobs)
-                if (_jobStatus.Jobs.TryGetValue(jobId, out jobStatus))
+                if (_jobStatus.Jobs.TryGetValue(jobId, out var jobStatus))
                     jobStatus.Enabled = false;
 
         }
@@ -98,7 +102,7 @@ namespace Tedd.ChiaPlotter
         {
             for (; ; )
             {
-                await Task.Delay(100);
+                await Task.Delay(1_000);
                 // Task is disabled, so we exit
                 if (!jobStatus.Enabled)
                     return;
@@ -128,7 +132,8 @@ namespace Tedd.ChiaPlotter
                     }
 
                     // Not done yet, start process (again)
-                    jobStatus.Process = StartProcess("chia", "args");
+                    jobStatus.LogFile = Path.Combine(jobStatus.Job.Temp1Dir, $"PlotterLog_{jobId:D4}.txt");
+                    jobStatus.Process = StartProcess("cmd", $@" /c ""chia plots create {jobStatus.Job.CreateCommandlineArgs()} > {jobStatus.LogFile} 2>&1""");
                     if (jobStatus.Process == null)
                     {
                         Console.WriteLine($"Error: Unable to execute plotter process for job id {jobId}: ");
@@ -145,6 +150,7 @@ namespace Tedd.ChiaPlotter
             {
                 FileName = cmd,
                 Arguments = args,
+                CreateNoWindow = true,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,

@@ -39,5 +39,7 @@ namespace Tedd.ChiaPlotter.Models
         /// How many plots has been generated
         /// </summary>
         public int RunCount { get; set; }
+
+        public string LogFile { get; set; }
     }
 }
