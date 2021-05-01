@@ -9,7 +9,7 @@ namespace Tedd.ChiaPlotter.Models
         public string FarmerPK { get; set; }
 
         public string Temp1Dir { get; set; }
-        public string Temp2Dir { get; set; }
+        public string? Temp2Dir { get; set; }
         public string PlotDir { get; set; }
         public int ThreadCount { get; set; }
         public int MaxRamMB { get; set; }

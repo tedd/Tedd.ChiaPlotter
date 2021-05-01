@@ -30,7 +30,7 @@ namespace Tedd.ChiaPlotter
                 if (processDic.TryGetValue(job.ProcessId, out var process))
                 {
                     var cmd = GetCommandLine(process);
-                    if (cmd.Contains("chia") && cmd.Contains("plots create"))
+                    if (cmd.Contains("chia") && cmd.Contains("plots create " + jobId))
                     {
                         // This is a old, but still running process for jobId
                         job.Running = true;
@@ -133,7 +133,7 @@ namespace Tedd.ChiaPlotter
 
                     // Not done yet, start process (again)
                     jobStatus.LogFile = Path.Combine(jobStatus.Job.Temp1Dir, $"PlotterLog_{jobId:D4}.txt");
-                    jobStatus.Process = StartProcess("cmd", $@" /c ""chia plots create {jobStatus.Job.CreateCommandlineArgs()} > {jobStatus.LogFile} 2>&1""");
+                    jobStatus.Process = StartProcess("cmd", $@" /c ""{Program.ChiaExe} plots create {jobStatus.Job.CreateCommandlineArgs()} > {jobStatus.LogFile} 2>&1""");
                     if (jobStatus.Process == null)
                     {
                         Console.WriteLine($"Error: Unable to execute plotter process for job id {jobId}: ");

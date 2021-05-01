@@ -16,6 +16,7 @@ namespace Tedd.ChiaPlotter
         private static string _jobsConfigFile = "";
         private static string _jobsStatusFile = "";
         private static int _checkConfigChangeMs = 1_000;
+        internal static string ChiaExe = "chia";
 
 
         // <param name="verbose">Show verbose output</param>
@@ -26,6 +27,7 @@ namespace Tedd.ChiaPlotter
         /// Chia plotting helper
         /// </summary>
         /// <param name="action">Action: Start, List, AddJob, RemoveJob</param>
+        /// <param name="chiaExe">AddJob: Location of chia executable (there are 3, this is the one under resources) (required)</param>
         /// <param name="keyFingerprint">AddJob: Key fingerprint from your keychain (optional)</param>
         /// <param name="farmerPK">AddJob: Farmer Public Key (optional)</param>
         /// <param name="poolPK">AddJob: Farmer Public Key (optional)</param>
@@ -41,7 +43,7 @@ namespace Tedd.ChiaPlotter
         /// <param name="jobStatusFile">Job status file to use (optional, default: ChiaPlotter_Status.json)</param>
         static async Task<int> Main(ActionEnum action = ActionEnum.None,
             //            bool daemon = false, bool verbose = false,
-            int keyFingerprint = 0, string? farmerPK = null, string? poolPK = null, string? temp1Dir = null, string? temp2Dir = null, string? plotDir = null, int threadCount = 2, int maxRamMB = 4096, int bucketCount = 128, int plotCount = 1, //int plotParallelism = 1, string queueName = "default",
+            string? chiaExe = null, int keyFingerprint = 0, string? farmerPK = null, string? poolPK = null, string? temp1Dir = null, string? temp2Dir = null, string? plotDir = null, int threadCount = 2, int maxRamMB = 4096, int bucketCount = 128, int plotCount = 1, //int plotParallelism = 1, string queueName = "default",
             int jobId = -1, //bool killRunning = false,
             string jobConfigFile = "ChiaPlotter_Config.json", string jobStatusFile = "ChiaPlotter_Status.json")
         {
@@ -67,9 +69,10 @@ namespace Tedd.ChiaPlotter
                     return (int)await ShowHelp($"Missing -{nameof(keyFingerprint)} parameter. Or missing -{nameof(farmerPK)} and -{nameof(poolPK)} parameters.");
                 case ActionEnum.AddJob when string.IsNullOrWhiteSpace(temp1Dir):
                     return (int)await ShowHelp($"Missing -{nameof(temp1Dir)} parameter.");
-                case ActionEnum.AddJob when string.IsNullOrWhiteSpace(plotDir):
-                    return (int)await ShowHelp($"Missing -{nameof(plotDir)} parameter.");
+                case ActionEnum.AddJob when string.IsNullOrWhiteSpace(chiaExe):
+                    return (int)await ShowHelp($"Missing -{nameof(chiaExe)} parameter.");
                 case ActionEnum.AddJob:
+                    ChiaExe = chiaExe;
                     return (int)await AddJob(new Job()
                     {
                         Temp1Dir = temp1Dir,
